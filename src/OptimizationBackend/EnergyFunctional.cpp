@@ -30,9 +30,7 @@
 #include "OptimizationBackend/AccumulatedSCHessian.h"
 #include "OptimizationBackend/AccumulatedTopHessian.h"
 
-#if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
-#include "SSE2NEON.h"
-#endif
+
 
 namespace dso
 {
@@ -420,7 +418,7 @@ EFResidual* EnergyFunctional::insertResidual(PointFrameResidual* r)
 	efr->idxInAll = r->point->efPoint->residualsAll.size();
 	r->point->efPoint->residualsAll.push_back(efr);
 
-    connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
+	connectivityMap[(((long)efr->host->frameID) << 32) + ((long)efr->target->frameID)][0]++;
 
 	nResiduals++;
 	r->efResidual = efr;
@@ -452,9 +450,9 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 
 	for(EFFrame* fh2 : frames)
 	{
-        connectivityMap[(((uint64_t)eff->frameID) << 32) + ((uint64_t)fh2->frameID)] = Eigen::Vector2i(0,0);
+		connectivityMap[(((long)eff->frameID) << 32) + ((long)fh2->frameID)] = Eigen::Vector2i(0,0);
 		if(fh2 != eff)
-            connectivityMap[(((uint64_t)fh2->frameID) << 32) + ((uint64_t)eff->frameID)] = Eigen::Vector2i(0,0);
+			connectivityMap[(((long)fh2->frameID) << 32) + ((long)eff->frameID)] = Eigen::Vector2i(0,0);
 	}
 
 	return eff;
@@ -464,6 +462,8 @@ EFPoint* EnergyFunctional::insertPoint(PointHessian* ph)
 	EFPoint* efp = new EFPoint(ph, ph->host->efFrame);
 	efp->idxInPoints = ph->host->efFrame->points.size();
 	ph->host->efFrame->points.push_back(efp);
+	//printf("the host of this PointHessian is: %d, and the num of present pointsis: %d\n", ph->host->frameID, ph->host->efFrame->points.size());
+	
 
 	nPoints++;
 	ph->efPoint = efp;
@@ -490,7 +490,7 @@ void EnergyFunctional::dropResidual(EFResidual* r)
 		r->host->data->shell->statistics_outlierResOnThis++;
 
 
-    connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
+	connectivityMap[(((long)r->host->frameID) << 32) + ((long)r->target->frameID)][0]--;
 	nResiduals--;
 	r->data->efResidual=0;
 	delete r;
@@ -630,7 +630,7 @@ void EnergyFunctional::marginalizePointsF()
 				p->priorF *= setting_idepthFixPriorMargFac;
 				for(EFResidual* r : p->residualsAll)
 					if(r->isActive())
-                        connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][1]++;
+						connectivityMap[(((long)r->host->frameID) << 32) + ((long)r->target->frameID)][1]++;
 				allPointsToMarg.push_back(p);
 			}
 		}
@@ -825,10 +825,6 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		HFinal_top = HT_act + HM;
 		bFinal_top = bT_act + bM_top;
 
-
-
-
-
 		lastHS = HFinal_top;
 		lastbS = bFinal_top;
 
@@ -918,7 +914,7 @@ void EnergyFunctional::makeIDX()
 
 	allPoints.clear();
 
-	for(EFFrame* f : frames)
+	for(EFFrame* f : frames) {
 		for(EFPoint* p : f->points)
 		{
 			allPoints.push_back(p);
@@ -928,7 +924,7 @@ void EnergyFunctional::makeIDX()
 				r->targetIDX = r->target->idx;
 			}
 		}
-
+	}
 
 	EFIndicesValid=true;
 }

@@ -44,7 +44,7 @@
 using namespace dso;
 
 
-
+//把指定路径里面的图片，放入list中
 inline int getdir (std::string dir, std::vector<std::string> &files)
 {
     DIR *dp;
@@ -75,6 +75,25 @@ inline int getdir (std::string dir, std::vector<std::string> &files)
     return files.size();
 }
 
+inline void split(const std::string& src, const std::string& delim, std::vector<std::string>& dest)
+{
+    std::string str = src;
+    std::string::size_type start = 0, index;
+    std::string substr;
+
+    index = str.find_first_of(delim, start);    //在str中查找(起始：start) delim的任意字符的第一次出现的位置
+//    while(index != std::string::npos)
+    while(1)
+    {
+        substr = str.substr(start, index-start);
+        dest.push_back(substr);
+        start = str.find_first_not_of(delim, index);    //在str中查找(起始：index) 第一个不属于delim的字符出现的位置
+        if(start == std::string::npos) return;
+
+        index = str.find_first_of(delim, start);
+    }
+}
+
 
 struct PrepImageItem
 {
@@ -97,8 +116,6 @@ struct PrepImageItem
 };
 
 
-
-
 class ImageFolderReader
 {
 public:
@@ -107,71 +124,31 @@ public:
 		this->path = path;
 		this->calibfile = calibFile;
 
-#if HAS_ZIPLIB
-		ziparchive=0;
-		databuffer=0;
-#endif
-
-		isZipped = (path.length()>4 && path.substr(path.length()-4) == ".zip");
+		getdir (path, files);
 
 
-
-
-
-		if(isZipped)
-		{
-#if HAS_ZIPLIB
-			int ziperror=0;
-			ziparchive = zip_open(path.c_str(),  ZIP_RDONLY, &ziperror);
-			if(ziperror!=0)
-			{
-				printf("ERROR %d reading archive %s!\n", ziperror, path.c_str());
-				exit(1);
-			}
-
-			files.clear();
-			int numEntries = zip_get_num_entries(ziparchive, 0);
-			for(int k=0;k<numEntries;k++)
-			{
-				const char* name = zip_get_name(ziparchive, k,  ZIP_FL_ENC_STRICT);
-				std::string nstr = std::string(name);
-				if(nstr == "." || nstr == "..") continue;
-				files.push_back(name);
-			}
-
-			printf("got %d entries and %d files!\n", numEntries, (int)files.size());
-			std::sort(files.begin(), files.end());
-#else
-			printf("ERROR: cannot read .zip archive, as compile without ziplib!\n");
-			exit(1);
-#endif
-		}
-		else
-			getdir (path, files);
-
-
+		//图像矫正参数
 		undistort = Undistort::getUndistorterForFile(calibFile, gammaFile, vignetteFile);
 
 
 		widthOrg = undistort->getOriginalSize()[0];
 		heightOrg = undistort->getOriginalSize()[1];
-		width=undistort->getSize()[0];
-		height=undistort->getSize()[1];
-
+		width = undistort->getSize()[0];
+		height = undistort->getSize()[1];
 
 		// load timestamps if possible.
 		loadTimestamps();
 		printf("ImageFolderReader: got %d files in %s!\n", (int)files.size(), path.c_str());
 
 	}
+	
+	
 	~ImageFolderReader()
 	{
 #if HAS_ZIPLIB
 		if(ziparchive!=0) zip_close(ziparchive);
 		if(databuffer!=0) delete databuffer;
 #endif
-
-
 		delete undistort;
 	};
 
@@ -197,7 +174,14 @@ public:
 		Eigen::Matrix3f K;
 		getCalibMono(K, w_out, h_out);
 		setGlobalCalib(w_out, h_out, K);
+
+        setBaseline();
 	}
+
+    void setBaseline()
+    {
+        baseline = undistort->getBl();
+    }
 
 	int getNumImages()
 	{
@@ -244,39 +228,7 @@ private:
 
 	MinimalImageB* getImageRaw_internal(int id, int unused)
 	{
-		if(!isZipped)
-		{
-			// CHANGE FOR ZIP FILE
-			return IOWrap::readImageBW_8U(files[id]);
-		}
-		else
-		{
-#if HAS_ZIPLIB
-			if(databuffer==0) databuffer = new char[widthOrg*heightOrg*6+10000];
-			zip_file_t* fle = zip_fopen(ziparchive, files[id].c_str(), 0);
-			long readbytes = zip_fread(fle, databuffer, (long)widthOrg*heightOrg*6+10000);
-
-			if(readbytes > (long)widthOrg*heightOrg*6)
-			{
-				printf("read %ld/%ld bytes for file %s. increase buffer!!\n", readbytes,(long)widthOrg*heightOrg*6+10000, files[id].c_str());
-				delete[] databuffer;
-				databuffer = new char[(long)widthOrg*heightOrg*30];
-				fle = zip_fopen(ziparchive, files[id].c_str(), 0);
-				readbytes = zip_fread(fle, databuffer, (long)widthOrg*heightOrg*30+10000);
-
-				if(readbytes > (long)widthOrg*heightOrg*30)
-				{
-					printf("buffer still to small (read %ld/%ld). abort.\n", readbytes,(long)widthOrg*heightOrg*30+10000);
-					exit(1);
-				}
-			}
-
-			return IOWrap::readStreamBW_8U(databuffer, readbytes);
-#else
-			printf("ERROR: cannot read .zip archive, as compile without ziplib!\n");
-			exit(1);
-#endif
-		}
+	  return IOWrap::readImageBW_8U(files[id]);
 	}
 
 
@@ -312,11 +264,12 @@ private:
 				exposures.push_back(exposure);
 			}
 
-			else if(2 == sscanf(buf, "%d %lf", &id, &stamp))
+			else if(1 == sscanf(buf, "%lf", &stamp))
 			{
 				timestamps.push_back(stamp);
 				exposures.push_back(exposure);
 			}
+//			std::cout << stamp <<std::endl;
 		}
 		tr.close();
 
@@ -354,9 +307,6 @@ private:
 
 		printf("got %d images and %d timestamps and %d exposures.!\n", (int)getNumImages(), (int)timestamps.size(), (int)exposures.size());
 	}
-
-
-
 
 	std::vector<ImageAndExposure*> preloadedImages;
 	std::vector<std::string> files;

@@ -25,7 +25,6 @@
 #pragma once
 #define MAX_ACTIVE_FRAMES 100
 
-#include <deque>
 #include "util/NumType.h"
 #include "util/globalCalib.h"
 #include "vector"
@@ -106,7 +105,7 @@ template<typename T> inline void deleteOutOrder(std::vector<T*> &v, const T* ele
 }
 
 
-inline bool eigenTestNan(const MatXX &m, std::string msg)
+inline bool eigenTestNan(MatXX m, std::string msg)
 {
 	bool foundNan = false;
 	for(int y=0;y<m.rows();y++)
@@ -131,18 +130,23 @@ inline bool eigenTestNan(const MatXX &m, std::string msg)
 
 class FullSystem {
 public:
-	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	FullSystem();
 	virtual ~FullSystem();
 
 	// adds a new frame, and creates point & residual structs.
-	void addActiveFrame(ImageAndExposure* image, int id);
+	void addActiveFrame(ImageAndExposure* image, ImageAndExposure* image_right, int id);
 
 	// marginalizes a frame. drops / marginalizes points & residuals.
 	void marginalizeFrame(FrameHessian* frame);
 	void blockUntilMappingIsFinished();
 
 	float optimize(int mnumOptIts);
+
+	//compute stereo idepth
+	void stereoMatch(ImageAndExposure* image, ImageAndExposure* image_right, int id, cv::Mat &idepthMap);
+
+
 
 	void printResult(std::string file);
 
@@ -160,7 +164,7 @@ public:
 
 
 	void setGammaFunction(float* BInv);
-	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
+	void setOriginalCalib(VecXf originalCalib, int originalW, int originalH);
 
 private:
 
@@ -175,15 +179,18 @@ private:
 
 	double linAllPointSinle(PointHessian* point, float outlierTHSlack, bool plot);
 
+    void traceNewCoarseNonKey(FrameHessian* fh, FrameHessian* fh_right);
+
 	// mainPipelineFunctions
-	Vec4 trackNewCoarse(FrameHessian* fh);
-	void traceNewCoarse(FrameHessian* fh);
+	Vec4 trackNewCoarse(FrameHessian* fh,FrameHessian* fh_right);
+	void traceNewCoarseKey(FrameHessian* fh,FrameHessian* fh_right);
 	void activatePoints();
 	void activatePointsMT();
 	void activatePointsOldFirst();
 	void flagPointsForRemoval();
-	void makeNewTraces(FrameHessian* newFrame, float* gtDepth);
+	void makeNewTraces(FrameHessian* newFrame, FrameHessian* newFrameRight, float* gtDepth);
 	void initializeFromInitializer(FrameHessian* newFrame);
+	void initializeFromInitializer(FrameHessian* newFrame, FrameHessian* newFrame_right);
 	void flagFramesForMarginalization(FrameHessian* newFH);
 
 
@@ -206,7 +213,7 @@ private:
 	void activatePointsMT_Reductor(std::vector<PointHessian*>* optimized,std::vector<ImmaturePoint*>* toOptimize,int min, int max, Vec10* stats, int tid);
 	void applyRes_Reductor(bool copyJacobians, int min, int max, Vec10* stats, int tid);
 
-	void printOptRes(const Vec3 &res, double resL, double resM, double resPrior, double LExact, float a, float b);
+	void printOptRes(Vec3 res, double resL, double resM, double resPrior, double LExact, float a, float b);
 
 	void debugPlotTracking();
 
@@ -246,11 +253,6 @@ private:
 	float statistics_lastFineTrackRMSE;
 
 
-
-
-
-
-
 	// =================== changed by tracker-thread. protected by trackMutex ============
 	boost::mutex trackMutex;
 	std::vector<FrameShell*> allFrameHistory;
@@ -273,6 +275,7 @@ private:
 	std::vector<PointFrameResidual*> activeResiduals;
 	float currentMinActDist;
 
+	std::vector<FrameHessian*> frameHessiansRight;
 
 	std::vector<float> allResVec;
 
@@ -299,9 +302,9 @@ private:
  *
  */
 
-	void makeKeyFrame( FrameHessian* fh);
-	void makeNonKeyFrame( FrameHessian* fh);
-	void deliverTrackedFrame(FrameHessian* fh, bool needKF);
+	void makeKeyFrame( FrameHessian* fh, FrameHessian* fh_right);
+	void makeNonKeyFrame( FrameHessian* fh, FrameHessian* fh_right);
+	void deliverTrackedFrame(FrameHessian* fh, FrameHessian* fh_right, bool needKF);
 	void mappingLoop();
 
 	// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
@@ -309,6 +312,7 @@ private:
 	boost::condition_variable trackedFrameSignal;
 	boost::condition_variable mappedFrameSignal;
 	std::deque<FrameHessian*> unmappedTrackedFrames;
+	std::deque<FrameHessian*> unmappedTrackedFrames_right;
 	int needNewKFAfter;	// Otherwise, a new KF is *needed that has ID bigger than [needNewKFAfter]*.
 	boost::thread mappingThread;
 	bool runMapping;

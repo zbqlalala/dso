@@ -54,8 +54,13 @@ public:
 			int coarsestLvl, Vec5 minResForAbort,
 			IOWrap::Output3DWrapper* wrap=0);
 
-	void setCoarseTrackingRef(
+	void setCTRefForFirstFrame(
 			std::vector<FrameHessian*> frameHessians);
+
+	void setCoarseTrackingRef(
+			std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib);
+	
+	void makeCoarseDepthForFirstFrame(FrameHessian* fh);
 
 	void makeK(
 			CalibHessian* HCalib);
@@ -78,6 +83,7 @@ public:
     void debugPlotIDepthMap(float* minID, float* maxID, std::vector<IOWrap::Output3DWrapper*> &wraps);
     void debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*> &wraps);
 
+
 	FrameHessian* lastRef;
 	AffLight lastRef_aff_g2l;
 	FrameHessian* newFrame;
@@ -89,17 +95,16 @@ public:
 	double firstCoarseRMSE;
 private:
 
-
-	void makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians);
+	void makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib);
 	float* idepth[PYR_LEVELS];
 	float* weightSums[PYR_LEVELS];
 	float* weightSums_bak[PYR_LEVELS];
 
 
-	Vec6 calcResAndGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
-	Vec6 calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
-	void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
-	void calcGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
+	Vec6 calcResAndGS(int lvl, Mat88 &H_out, Vec8 &b_out, SE3 refToNew, AffLight aff_g2l, float cutoffTH);
+	Vec6 calcRes(int lvl, SE3 refToNew, AffLight aff_g2l, float cutoffTH);
+	void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, SE3 refToNew, AffLight aff_g2l);
+	void calcGS(int lvl, Mat88 &H_out, Vec8 &b_out, SE3 refToNew, AffLight aff_g2l);
 
 	// pc buffers
 	float* pc_u[PYR_LEVELS];
@@ -118,10 +123,6 @@ private:
 	float* buf_warped_weight;
 	float* buf_warped_refColor;
 	int buf_warped_n;
-
-
-    std::vector<float*> ptrToDelete;
-
 
 	Accumulator9 acc;
 };

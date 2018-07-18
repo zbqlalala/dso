@@ -56,16 +56,16 @@ public:
             printf("OUT: Destroyed SampleOutputWrapper\n");
         }
 
-        virtual void publishGraph(const std::map<uint64_t, Eigen::Vector2i, std::less<uint64_t>, Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>> &connectivity) override
+        virtual void publishGraph(const std::map<long,Eigen::Vector2i> &connectivity)
         {
             printf("OUT: got graph with %d edges\n", (int)connectivity.size());
 
             int maxWrite = 5;
 
-            for(const std::pair<uint64_t,Eigen::Vector2i> &p : connectivity)
+            for(const std::pair<long,Eigen::Vector2i> &p : connectivity)
             {
                 int idHost = p.first>>32;
-                int idTarget = p.first & ((uint64_t)0xFFFFFFFF);
+                int idTarget = p.first & 0xFFFFFFFF;
                 printf("OUT: Example Edge %d -> %d has %d active and %d marg residuals\n", idHost, idTarget, p.second[0], p.second[1]);
                 maxWrite--;
                 if(maxWrite==0) break;
@@ -74,7 +74,7 @@ public:
 
 
 
-        virtual void publishKeyframes( std::vector<FrameHessian*> &frames, bool final, CalibHessian* HCalib) override
+        virtual void publishKeyframes( std::vector<FrameHessian*> &frames, bool final, CalibHessian* HCalib)
         {
             for(FrameHessian* f : frames)
             {
@@ -98,7 +98,7 @@ public:
             }
         }
 
-        virtual void publishCamPose(FrameShell* frame, CalibHessian* HCalib) override
+        virtual void publishCamPose(FrameShell* frame, CalibHessian* HCalib)
         {
             printf("OUT: Current Frame %d (time %f, internal ID %d). CameraToWorld:\n",
                    frame->incoming_id,
@@ -108,21 +108,21 @@ public:
         }
 
 
-        virtual void pushLiveFrame(FrameHessian* image) override
+        virtual void pushLiveFrame(FrameHessian* image)
         {
             // can be used to get the raw image / intensity pyramid.
         }
 
-        virtual void pushDepthImage(MinimalImageB3* image) override
+        virtual void pushDepthImage(MinimalImageB3* image)
         {
             // can be used to get the raw image with depth overlay.
         }
-        virtual bool needPushDepthImage() override
+        virtual bool needPushDepthImage()
         {
             return false;
         }
 
-        virtual void pushDepthImageFloat(MinimalImageF* image, FrameHessian* KF ) override
+        virtual void pushDepthImageFloat(MinimalImageF* image, FrameHessian* KF )
         {
             printf("OUT: Predicted depth for KF %d (id %d, time %f, internal frame-ID %d). CameraToWorld:\n",
                    KF->frameID,

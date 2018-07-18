@@ -84,6 +84,9 @@ public:
 	void drawCam(float lineWidth = 1, float* color = 0, float sizeFactor=1);
 	void drawPC(float pointSize);
 
+    // render ground truth
+    void drawGTCam(Sophus::Matrix4f m, float lineWidth, float* color, float sizeFactor);
+
 	int id;
 	bool active;
 	SE3 camToWorld;

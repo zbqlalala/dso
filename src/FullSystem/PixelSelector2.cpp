@@ -75,6 +75,7 @@ int computeHistQuantil(int* hist, float below)
 }
 
 
+//
 void PixelSelector::makeHists(const FrameHessian* const fh)
 {
 	gradHistFrame = fh;
@@ -135,48 +136,41 @@ void PixelSelector::makeHists(const FrameHessian* const fh)
 		}
 
 
-
-
-
 }
+
 int PixelSelector::makeMaps(
 		const FrameHessian* const fh,
-		float* map_out, float density, int recursionsLeft, bool plot, float thFactor)
+		float* map_out, float density, int recursionsLeft, bool plot, float thFactor)  //thFactor = settingImaturePointDensity
 {
 	float numHave=0;
 	float numWant=density;
 	float quotia;
 	int idealPotential = currentPotential;
 
-
-//	if(setting_pixelSelectionUseFast>0 && allowFast)
-//	{
-//		memset(map_out, 0, sizeof(float)*wG[0]*hG[0]);
-//		std::vector<cv::KeyPoint> pts;
-//		cv::Mat img8u(hG[0],wG[0],CV_8U);
-//		for(int i=0;i<wG[0]*hG[0];i++)
-//		{
-//			float v = fh->dI[i][0]*0.8;
-//			img8u.at<uchar>(i) = (!std::isfinite(v) || v>255) ? 255 : v;
-//		}
-//		cv::FAST(img8u, pts, setting_pixelSelectionUseFast, true);
-//		for(unsigned int i=0;i<pts.size();i++)
-//		{
-//			int x = pts[i].pt.x+0.5;
-//			int y = pts[i].pt.y+0.5;
-//			map_out[x+y*wG[0]]=1;
-//			numHave++;
-//		}
-//
-//		printf("FAST selection: got %f / %f!\n", numHave, numWant);
-//		quotia = numWant / numHave;
-//	}
-//	else
+/*	if(setting_pixelSelectionUseFast>0 && allowFast)
 	{
+		memset(map_out, 0, sizeof(float)*wG[0]*hG[0]);
+		std::vector<cv::KeyPoint> pts;
+		cv::Mat img8u(hG[0],wG[0],CV_8U);
+		for(int i=0;i<wG[0]*hG[0];i++)
+		{
+			float v = fh->dI[i][0]*0.8;
+			img8u.at<uchar>(i) = (!std::isfinite(v) || v>255) ? 255 : v;
+		}
+		cv::FAST(img8u, pts, setting_pixelSelectionUseFast, true);
+		for(unsigned int i=0;i<pts.size();i++)
+		{
+			int x = pts[i].pt.x+0.5;
+			int y = pts[i].pt.y+0.5;
+			map_out[x+y*wG[0]]=1;
+			numHave++;
+		}
 
-
-
-
+		printf("FAST selection: got %f / %f!\n", numHave, numWant);
+		quotia = numWant / numHave;
+	}
+	else*/
+	{
 		// the number of selected pixels behaves approximately as
 		// K / (pot+1)^2, where K is a scene-dependent constant.
 		// we will allow sub-selecting pixels by up to a quotia of 0.25, otherwise we will re-select.
@@ -290,14 +284,10 @@ int PixelSelector::makeMaps(
 	return numHaveSub;
 }
 
-
-
 Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 		float* map_out, int pot, float thFactor)
 {
-
 	Eigen::Vector3f const * const map0 = fh->dI;
-
 	float * mapmax0 = fh->absSquaredGrad[0];
 	float * mapmax1 = fh->absSquaredGrad[1];
 	float * mapmax2 = fh->absSquaredGrad[2];
@@ -331,10 +321,10 @@ Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 
 
 
-	float dw1 = setting_gradDownweightPerLevel;
+	float dw1 = setting_gradDownweightPerLevel;   //0.75
 	float dw2 = dw1*dw1;
 
-
+	//x4,y4;x3,y3;x2,y2;x1,y1分别是什么？
 	int n3=0, n2=0, n4=0;
 	for(int y4=0;y4<h;y4+=(4*pot)) for(int x4=0;x4<w;x4+=(4*pot))
 	{
@@ -370,7 +360,7 @@ Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 
 
 					float pixelTH0 = thsSmoothed[(xf>>5) + (yf>>5) * thsStep];
-					float pixelTH1 = pixelTH0*dw1;
+					float pixelTH1 = pixelTH0*dw1; //DownweightPerPixel = 0.75
 					float pixelTH2 = pixelTH1*dw2;
 
 

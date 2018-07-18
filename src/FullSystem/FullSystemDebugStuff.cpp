@@ -158,16 +158,6 @@ namespace dso
 		}
 
 
-
-
-
-
-
-
-
-
-
-
 		int wh = hG[0]*wG[0];
 		for(unsigned int f=0;f<frameHessians.size();f++)
 		{

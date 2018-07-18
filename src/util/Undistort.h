@@ -29,10 +29,6 @@
 #include "util/NumType.h"
 #include "Eigen/Core"
 
-
-
-
-
 namespace dso
 {
 
@@ -78,6 +74,7 @@ public:
 	inline const VecX getOriginalParameter() const {return parsOrg;};
 	inline const Eigen::Vector2i getOriginalSize() {return Eigen::Vector2i(wOrg,hOrg);};
 	inline bool isValid() {return valid;};
+    inline const float getBl() const {return bl;};
 
 	template<typename T>
 	ImageAndExposure* undistort(const MinimalImage<T>* image_raw, float exposure=0, double timestamp=0, float factor=1) const;
@@ -89,6 +86,7 @@ public:
 
 protected:
     int w, h, wOrg, hOrg, wUp, hUp;
+    float bl;
     int upsampleUndistFactor;
 	Mat33 K;
 	VecX parsOrg;

@@ -28,6 +28,11 @@
 #include "util/NumType.h"
 #include "IOWrapper/ImageDisplay.h"
 #include "fstream"
+#include <cmath>
+#include <cv.h>
+#include <opencv2/highgui/highgui.hpp>
+
+
 
 namespace dso
 {
@@ -186,6 +191,31 @@ EIGEN_ALWAYS_INLINE Eigen::Vector3f getInterpolatedElement33BiLin(const Eigen::V
 			rightInt-leftInt,
 			botInt-topInt);
 }
+
+EIGEN_ALWAYS_INLINE float getMatInterpolatedElement11BiLin(const cv::Mat mat, const float x, const float y)
+{
+
+	int ix = (int)x;
+	int iy = (int)y;
+
+	float tl = (float) static_cast<u_char>(mat.at<cv::Vec3b>(iy, ix)[0]);
+	float tr = (float) static_cast<u_char>(mat.at<cv::Vec3b>(iy, ix+1)[0]);
+	float bl = (float) static_cast<u_char>(mat.at<cv::Vec3b>(iy+1, ix)[0]);
+	float br = (float) static_cast<u_char>(mat.at<cv::Vec3b>(iy+1, ix+1)[0]);
+
+	float dx = x - ix;
+	float dy = y - iy;
+
+	float topInt = dx * tr + (1-dx) * tl;
+	float botInt = dx * br + (1-dx) * bl;
+	float leftInt = dy * bl + (1-dy) * tl;
+	float rightInt = dy * br + (1-dy) * tr;
+
+	float value = dx * rightInt + (1-dx) * leftInt;
+	return value;
+
+}
+
 EIGEN_ALWAYS_INLINE float getInterpolatedElement11Cub(const float* const p, const float x)	// for x=0, this returns p[1].
 {
 	return p[1] + 0.5f * x*(p[2] - p[0] + x*(2.0f*p[0] - 5.0f*p[1] + 4.0f*p[2] - p[3] + x*(3.0f*(p[1] - p[2]) + p[3] - p[0])));
