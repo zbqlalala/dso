@@ -74,6 +74,7 @@ EIGEN_STRONG_INLINE bool projectPoint(
 
 	Vec3f ptp = R * KliP + t*idepth;
 	drescale = 1.0f/ptp[2];
+	// printf("drescale is %f", drescale);
 	new_idepth = idepth*drescale;
 
 	if(!(drescale>0)) return false;

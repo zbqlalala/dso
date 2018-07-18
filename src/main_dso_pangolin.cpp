@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <chrono>
 
 #include "IOWrapper/Output3DWrapper.h"
 #include "IOWrapper/ImageDisplay.h"
@@ -49,6 +50,9 @@
 
 #include "IOWrapper/Pangolin/PangolinDSOViewer.h"
 #include "IOWrapper/OutputWrapper/SampleOutputWrapper.h"
+
+#include <opencv/cv.hpp>
+#include <opencv/highgui.h>
 
 
 std::string vignette = "";
@@ -91,8 +95,6 @@ void exitThread()
 	while(true) pause();
 }
 
-
-
 void settingsDefault(int preset)
 {
 	printf("\n=============== PRESET Settings: ===============\n");
@@ -107,12 +109,18 @@ void settingsDefault(int preset)
 
 		playbackSpeed = (preset==0 ? 0 : 1);
 		preload = preset==1;
-		setting_desiredImmatureDensity = 1500;
-		setting_desiredPointDensity = 2000;
-		setting_minFrames = 5;
-		setting_maxFrames = 7;
-		setting_maxOptIterations=6;
-		setting_minOptIterations=1;
+
+        setting_desiredImmatureDensity = 1500;    //original 1500. set higher
+        setting_desiredPointDensity = 2000;       //original 2000
+        setting_minFrames = 5;
+        setting_maxFrames = 7;
+        setting_maxOptIterations=6;
+        setting_minOptIterations=1;
+
+        setting_kfGlobalWeight=0.3;   // original is 1.0. 0.3 is a balance between speed and accuracy. if tracking lost, set this para higher
+        setting_maxShiftWeightT= 0.04f * (640 + 128);   // original is 0.04f * (640+480); this para is depend on the crop size.
+        setting_maxShiftWeightR= 0.04f * (640 + 128);    // original is 0.0f * (640+480);
+        setting_maxShiftWeightRT= 0.02f * (640 + 128);  // original is 0.02f * (640+480);
 
 		setting_logStuff = false;
 	}
@@ -143,11 +151,6 @@ void settingsDefault(int preset)
 
 	printf("==============================================\n");
 }
-
-
-
-
-
 
 void parseArgument(char* arg)
 {
@@ -192,7 +195,6 @@ void parseArgument(char* arg)
 		}
 		return;
 	}
-
 
 
 	if(1==sscanf(arg,"noros=%d",&option))
@@ -322,7 +324,6 @@ void parseArgument(char* arg)
 
 	if(1==sscanf(arg,"mode=%d",&option))
 	{
-
 		mode = option;
 		if(option==0)
 		{
@@ -349,58 +350,37 @@ void parseArgument(char* arg)
 	printf("could not parse argument \"%s\"!!!!\n", arg);
 }
 
-
-
 int main( int argc, char** argv )
 {
 	//setlocale(LC_ALL, "");
+
 	for(int i=1; i<argc;i++)
 		parseArgument(argv[i]);
-
+	
 	// hook crtl+C.
 	boost::thread exThread = boost::thread(exitThread);
 
-
-	ImageFolderReader* reader = new ImageFolderReader(source,calib, gammaCalib, vignette);
+	ImageFolderReader* reader = new ImageFolderReader(source+"/image_0", calib, gammaCalib, vignette);
+	ImageFolderReader* reader_right = new ImageFolderReader(source+"/image_1", calib, gammaCalib, vignette);
 	reader->setGlobalCalibration();
-
-
-
+	reader_right->setGlobalCalibration();
+	
 	if(setting_photometricCalibration > 0 && reader->getPhotometricGamma() == 0)
 	{
 		printf("ERROR: dont't have photometric calibation. Need to use commandline options mode=1 or mode=2 ");
 		exit(1);
 	}
-
-
-
-
+	
 	int lstart=start;
 	int lend = end;
-	int linc = 1;
-	if(reverse)
-	{
-		printf("REVERSE!!!!");
-		lstart=end-1;
-		if(lstart >= reader->getNumImages())
-			lstart = reader->getNumImages()-1;
-		lend = start;
-		linc = -1;
-	}
-
-
-
+	
+	// build system
 	FullSystem* fullSystem = new FullSystem();
 	fullSystem->setGammaFunction(reader->getPhotometricGamma());
 	fullSystem->linearizeOperation = (playbackSpeed==0);
-
-
-
-
-
-
-
-    IOWrap::PangolinDSOViewer* viewer = 0;
+	
+	
+	IOWrap::PangolinDSOViewer* viewer = 0;
 	if(!disableAllDisplay)
     {
         viewer = new IOWrap::PangolinDSOViewer(wG[0],hG[0], false);
@@ -412,13 +392,16 @@ int main( int argc, char** argv )
     if(useSampleOutput)
         fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
 
-
-
-
     // to make MacOS happy: run this in dedicated thread -- and use this one to run the GUI.
     std::thread runthread([&]() {
-        std::vector<int> idsToPlay;
+        std::vector<int> idsToPlay;				// left images
         std::vector<double> timesToPlayAt;
+
+        std::vector<int> idsToPlayRight;		// right images
+        std::vector<double> timesToPlayAtRight;
+
+        int linc = 1;
+
         for(int i=lstart;i>= 0 && i< reader->getNumImages() && linc*i < linc*lend;i+=linc)
         {
             idsToPlay.push_back(i);
@@ -434,25 +417,44 @@ int main( int argc, char** argv )
             }
         }
 
+        for(int i=lstart;i>= 0 && i< reader_right->getNumImages() && linc*i < linc*lend;i+=linc)
+        {
+            idsToPlayRight.push_back(i);
+            if(timesToPlayAtRight.size() == 0)
+            {
+                timesToPlayAtRight.push_back((double)0);
+            }
+            else
+            {
+                double tsThis = reader_right->getTimestamp(idsToPlay[idsToPlay.size()-1]);
+                double tsPrev = reader_right->getTimestamp(idsToPlay[idsToPlay.size()-2]);
+                timesToPlayAtRight.push_back(timesToPlayAtRight.back() +  fabs(tsThis-tsPrev)/playbackSpeed);
+            }
+        }
 
-        std::vector<ImageAndExposure*> preloadedImages;
-        if(preload)
+
+
+        std::vector<ImageAndExposure*> preloadedImagesLeft;
+        std::vector<ImageAndExposure*> preloadedImagesRight;
+		if(preload)
         {
             printf("LOADING ALL IMAGES!\n");
             for(int ii=0;ii<(int)idsToPlay.size(); ii++)
             {
-                int i = idsToPlay[ii];
-                preloadedImages.push_back(reader->getImage(i));
+			  int i = idsToPlay[ii];
+			  preloadedImagesLeft.push_back(reader->getImage(i));
+			  preloadedImagesRight.push_back(reader_right->getImage(i));
             }
         }
 
+        // timing
         struct timeval tv_start;
         gettimeofday(&tv_start, NULL);
         clock_t started = clock();
         double sInitializerOffset=0;
 
 
-        for(int ii=0;ii<(int)idsToPlay.size(); ii++)
+        for(int ii=0; ii<(int)idsToPlay.size(); ii++)
         {
             if(!fullSystem->initialized)	// if not initialized: reset start time.
             {
@@ -464,13 +466,16 @@ int main( int argc, char** argv )
             int i = idsToPlay[ii];
 
 
-            ImageAndExposure* img;
-            if(preload)
-                img = preloadedImages[ii];
-            else
-                img = reader->getImage(i);
-
-
+            ImageAndExposure* img_left;
+			ImageAndExposure* img_right;
+			if(preload){
+			  img_left = preloadedImagesLeft[ii];
+			  img_right = preloadedImagesRight[ii];
+			}
+			else{
+			  img_left = reader->getImage(i);
+			  img_right = reader_right->getImage(i);
+			}
 
             bool skipFrame=false;
             if(playbackSpeed!=0)
@@ -487,15 +492,33 @@ int main( int argc, char** argv )
                 }
             }
 
+            // if MODE_SLAM is true, it runs slam.
+            bool MODE_SLAM = true;
+            // if MODE_STEREOMATCH is true, it does stereo matching and output idepth image.
+            bool MODE_STEREOMATCH = false;
 
+            if(MODE_SLAM)
+            {
+                if(!skipFrame) fullSystem->addActiveFrame(img_left, img_right, i);
+            }
 
-            if(!skipFrame) fullSystem->addActiveFrame(img, i);
+            if(MODE_STEREOMATCH)
+            {
+                std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
 
+                cv::Mat idepthMap(img_left->h, img_left->w, CV_32FC3, cv::Scalar(0,0,0));
+                cv::Mat &idepth_temp = idepthMap;
+                fullSystem->stereoMatch(img_left, img_right, i, idepth_temp);
 
+                std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+                double ttStereoMatch = std::chrono::duration_cast<std::chrono::duration<double>>(t1 -t0).count();
+                std::cout << " casting time " << ttStereoMatch << std::endl;
+            }
 
+            delete img_left;
+	        delete img_right;
 
-            delete img;
-
+			// initializer fail
             if(fullSystem->initFailed || setting_fullResetRequested)
             {
                 if(ii < 250 || setting_fullResetRequested)
@@ -525,13 +548,15 @@ int main( int argc, char** argv )
             }
 
         }
+
+
         fullSystem->blockUntilMappingIsFinished();
         clock_t ended = clock();
         struct timeval tv_end;
         gettimeofday(&tv_end, NULL);
 
 
-        fullSystem->printResult("result.txt");
+        fullSystem->printResult("/home/jiatianwu/project/sdso/result.txt");
 
 
         int numFramesProcessed = abs(idsToPlay[0]-idsToPlay.back());
@@ -574,8 +599,6 @@ int main( int argc, char** argv )
 		ow->join();
 		delete ow;
 	}
-
-
 
 	printf("DELETE FULLSYSTEM!\n");
 	delete fullSystem;

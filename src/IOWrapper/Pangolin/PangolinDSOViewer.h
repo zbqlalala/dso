@@ -67,18 +67,19 @@ public:
 
 
 	// ==================== Output3DWrapper Functionality ======================
-    virtual void publishGraph(const std::map<uint64_t, Eigen::Vector2i, std::less<uint64_t>, Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>> &connectivity) override;
-    virtual void publishKeyframes( std::vector<FrameHessian*> &frames, bool final, CalibHessian* HCalib) override;
-    virtual void publishCamPose(FrameShell* frame, CalibHessian* HCalib) override;
+	virtual void publishGraph(const std::map<long,Eigen::Vector2i> &connectivity);
+    virtual void publishKeyframes( std::vector<FrameHessian*> &frames, bool final, CalibHessian* HCalib);
+    virtual void publishCamPose(FrameShell* frame, CalibHessian* HCalib);
 
 
-    virtual void pushLiveFrame(FrameHessian* image) override;
-    virtual void pushDepthImage(MinimalImageB3* image) override;
-    virtual bool needPushDepthImage() override;
+	virtual void pushLiveFrame(FrameHessian* image);
+	virtual void pushStereoLiveFrame(FrameHessian* image,FrameHessian* image_right);
+	virtual void pushDepthImage(MinimalImageB3* image);
+    virtual bool needPushDepthImage();
 
-    virtual void join() override;
+	virtual void join();
 
-    virtual void reset() override;
+	virtual void reset();
 private:
 
 	bool needReset;
@@ -96,6 +97,7 @@ private:
 	MinimalImageB3* internalVideoImg;
 	MinimalImageB3* internalKFImg;
 	MinimalImageB3* internalResImg;
+	MinimalImageB3* internalVideoImg_Right;
 	bool videoImgChanged, kfImgChanged, resImgChanged;
 
 

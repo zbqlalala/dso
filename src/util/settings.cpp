@@ -35,9 +35,9 @@ int pyrLevelsUsed = PYR_LEVELS;
 /* Parameters controlling when KF's are taken */
 float setting_keyframesPerSecond = 0;   // if !=0, takes a fixed number of KF per second.
 bool setting_realTimeMaxKF = false;   // if true, takes as many KF's as possible (will break the system if the camera stays stationary)
-float setting_maxShiftWeightT= 0.04f * (640+480);
-float setting_maxShiftWeightR= 0.0f * (640+480);
-float setting_maxShiftWeightRT= 0.02f * (640+480);
+float setting_maxShiftWeightT= 0.04f * (640 + 480);   // original is 0.04f * (640+480);
+float setting_maxShiftWeightR= 0.0f * (640 + 480);    // original is 0.0f * (640+480);
+float setting_maxShiftWeightRT= 0.02f * (640 + 480);  // original is 0.02f * (640+480);
 float setting_kfGlobalWeight = 1;   // general weight on threshold, the larger the more KF's are taken (e.g., 2 = double the amount of KF's).
 float setting_maxAffineWeight= 2;
 
@@ -69,8 +69,8 @@ float setting_minIdepthH_marg = 50;
 
 
 
-float setting_desiredImmatureDensity = 1500; // immature points per frame
-float setting_desiredPointDensity = 2000; // aimed total points in the active window.
+float setting_desiredImmatureDensity = 3000; // original is 1500 immature points per frame
+float setting_desiredPointDensity = 4000; // original is 2000 aimed total points in the active window.
 float setting_minPointsRemaining = 0.05;  // marg a frame if less than X% points remain.
 float setting_maxLogAffFacInWindow = 0.7; // marg a frame if factor between intensities to current frame is larger than 1/X or X.
 
@@ -98,7 +98,7 @@ float setting_margWeightFac = 0.5*0.5;          // factor on hessian when margin
 
 
 /* when to re-track a frame */
-float setting_reTrackThreshold = 1.5; // (larger = re-track more often)
+float setting_reTrackThreshold = 1.5; //  改到1 没有得到改善 original is 1.5 (larger = re-track more often)
 
 
 
@@ -116,8 +116,8 @@ int   setting_minGoodResForMarg=4;
 // 2 = apply inv. response & remove V.
 int setting_photometricCalibration = 2;
 bool setting_useExposure = true;
-float setting_affineOptModeA = 1e12; //-1: fix. >=0: optimize (with prior, if > 0).
-float setting_affineOptModeB = 1e8; //-1: fix. >=0: optimize (with prior, if > 0).
+float setting_affineOptModeA = 1e12; //original //-1: fix. >=0: optimize (with prior, if > 0).
+float setting_affineOptModeB = 1e8; //original //-1: fix. >=0: optimize (with prior, if > 0).
 
 int setting_gammaWeightsPixelSelect = 1; // 1 = use original intensity for pixel selection; 0 = use gamma-corrected intensity.
 
@@ -189,7 +189,7 @@ bool disableReconfigure=false;
 bool debugSaveImages = false;
 bool multiThreading = true;
 bool disableAllDisplay = false;
-bool setting_onlyLogKFPoses = true;
+bool setting_onlyLogKFPoses = false;
 bool setting_logStuff = true;
 
 
@@ -207,7 +207,7 @@ bool setting_render_displayDepth = true;
 
 bool setting_fullResetRequested = false;
 
-bool setting_debugout_runquiet = false;
+bool setting_debugout_runquiet = true; //original is false
 
 int sparsityFactor = 5;	// not actually a setting, only some legacy stuff for coarse initializer.
 

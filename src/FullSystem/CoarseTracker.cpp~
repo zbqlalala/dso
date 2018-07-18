@@ -137,7 +137,7 @@ void CoarseTracker::makeK(CalibHessian* HCalib)
 void CoarseTracker::makeCoarseDepthForFirstFrame(FrameHessian* fh)
 {
     // make coarse tracking templates for latstRef.
-    memset(idepth[0], 0, sizeof(float)*w[0]*h[0]);
+    memset(idepth[0], 0, sizeof(float)*w[0]*h[0]); // memset用于一段内存块中填充值
     memset(weightSums[0], 0, sizeof(float)*w[0]*h[0]);
 
     for(PointHessian* ph : fh->pointHessians)
@@ -149,13 +149,40 @@ void CoarseTracker::makeCoarseDepthForFirstFrame(FrameHessian* fh)
 
         idepth[0][u+w[0]*v] += new_idepth *weight;
         weightSums[0][u+w[0]*v] += weight;
+//        printf("idepth with weight is  %f original is %f \n", idepth[0][u+w[0]*v], ph->idepth);
 
     }
 
+/*    //对于H矩阵中的每一个frame
+    for(FrameHessian* fh : frameHessians)
+    {
+        //对于frame中的每一个点
+        for(PointHessian* ph : fh->pointHessians)
+        {
+            if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::IN) //contains information about residuals to the last two (!) frames. ([0] = latest, [1] = the one before).
+            {
+                PointFrameResidual* r = ph->lastResiduals[0].first;
+                assert(r->efResidual->isActive() && r->target == lastRef);
+                // centerProjectedTo为Vec3f, 分别存u,v, new_idepth,代表的就是该帧上一帧能tracking到的点在这一帧的坐标和逆深度
+                int u = r->centerProjectedTo[0] + 0.5f;    //centerProjectedTo为Vec3f, 分别存u,v, new_idepth
+                int v = r->centerProjectedTo[1] + 0.5f;
+                float new_idepth = r->centerProjectedTo[2];
+                float weight = sqrtf(1e-3 / (ph->efPoint->HdiF+1e-12));
+
+                // 对idepth做一个加权更新
+                idepth[0][u+w[0]*v] += new_idepth *weight;
+                weightSums[0][u+w[0]*v] += weight;
+
+            }
+        }
+    }*/
+
+    //对于金字塔的每一层
     for(int lvl=1; lvl<pyrLevelsUsed; lvl++)
     {
         int lvlm1 = lvl-1;
         int wl = w[lvl], hl = h[lvl], wlm1 = w[lvlm1];
+//		printf("wl is %d \n", wl);
 
         float* idepth_l = idepth[lvl];
         float* weightSums_l = weightSums[lvl];
@@ -163,6 +190,7 @@ void CoarseTracker::makeCoarseDepthForFirstFrame(FrameHessian* fh)
         float* idepth_lm = idepth[lvlm1];
         float* weightSums_lm = weightSums[lvlm1];
 
+        //得出每个点的深度，以及权重
         for(int y=0;y<hl;y++)
             for(int x=0;x<wl;x++)
             {
@@ -176,8 +204,12 @@ void CoarseTracker::makeCoarseDepthForFirstFrame(FrameHessian* fh)
                                             weightSums_lm[bidx+1] +
                                             weightSums_lm[bidx+wlm1] +
                                             weightSums_lm[bidx+wlm1+1];
+
+//				printf("idpeth_l is %f weightSums_l is %f \n", idepth_l[x + y*wl], weightSums_l[x + y*wl] );
             }
     }
+
+
 
     // dilate idepth by 1.
     for(int lvl=0; lvl<2; lvl++)
@@ -283,13 +315,34 @@ void CoarseTracker::makeCoarseDepthForFirstFrame(FrameHessian* fh)
 //		printf("pc_n[lvl] is %d \n", lpc_n);
     }
 
+/*	int lvl=0;
+	int wl = w[lvl], hl = h[lvl];
+
+	int lpc_n=0;
+	float* lpc_u = pc_u[lvl];
+	float* lpc_v = pc_v[lvl];
+	float* lpc_idepth = pc_idepth[lvl];
+	float* lpc_color = pc_color[lvl]; 
+	Eigen::Vector3f* dIRefl = fh->dIp[lvl];
+		
+  for(PointHessian* ph : fh->pointHessians)
+  {
+    lpc_u[lpc_n] = ph->u;
+    lpc_v[lpc_n] = ph->v;
+    lpc_color[lpc_n] = dIRefl[int(ph->u + ph->v * wl)][0];
+    lpc_idepth[lpc_n] = ph->idepth;
+    lpc_n++;
+    // printf("u and v are: %d, %d\n", ph->u, ph->v);
+  }
+  
+  pc_n[lvl]=lpc_n;*/
+
 }
 
-// make depth mainly from static stereo matching and fill the holes from propogation idpeth map.
 void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
 {
 	// make coarse tracking templates for latstRef.
-	memset(idepth[0], 0, sizeof(float)*w[0]*h[0]);
+	memset(idepth[0], 0, sizeof(float)*w[0]*h[0]); // memset用于一段内存块中填充值
 	memset(weightSums[0], 0, sizeof(float)*w[0]*h[0]);
 
     FrameHessian* fh_target = frameHessians.back();
@@ -299,26 +352,26 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, 
     K1(0, 2) = Hcalib.cxl();
     K1(1, 2) = Hcalib.cyl();
 
+	//对于H矩阵中的每一个frame
 	for(FrameHessian* fh : frameHessians)
 	{
+	    //对于frame中的每一个点
 		for(PointHessian* ph : fh->pointHessians)
 		{
 			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::IN) //contains information about residuals to the last two (!) frames. ([0] = latest, [1] = the one before).
 			{
 				PointFrameResidual* r = ph->lastResiduals[0].first;
 				assert(r->efResidual->isActive() && r->target == lastRef);
-				int u = r->centerProjectedTo[0] + 0.5f;
+				// centerProjectedTo为Vec3f, 分别存u,v, new_idepth,代表的就是该帧上一帧能tracking到的点在这一帧的坐标和逆深度
+				int u = r->centerProjectedTo[0] + 0.5f;    //centerProjectedTo为Vec3f, 分别存u,v, new_idepth
 				int v = r->centerProjectedTo[1] + 0.5f;
 
                 ImmaturePoint* pt_track = new ImmaturePoint((float)u, (float)v, fh_target, &Hcalib);
 
                 pt_track->u_stereo = pt_track->u;
                 pt_track->v_stereo = pt_track->v;
-
-				// free to debug
-                pt_track->idepth_min_stereo = r->centerProjectedTo[2] * 0.1f;
-                pt_track->idepth_max_stereo = r->centerProjectedTo[2] * 1.9f;
-
+                pt_track->idepth_min_stereo = 0;
+                pt_track->idepth_max_stereo = NAN;
                 ImmaturePointStatus pt_track_right = pt_track->traceStereo(fh_right, K1, 1);
 
                 float new_idepth = 0;
@@ -328,16 +381,12 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, 
                     ImmaturePoint* pt_track_back = new ImmaturePoint(pt_track->lastTraceUV(0), pt_track->lastTraceUV(1), fh_right, &Hcalib);
                     pt_track_back->u_stereo = pt_track_back->u;
                     pt_track_back->v_stereo = pt_track_back->v;
-
-
-                    pt_track_back->idepth_min_stereo = r->centerProjectedTo[2] * 0.1f;
-                    pt_track_back->idepth_max_stereo = r->centerProjectedTo[2] * 1.9f;
-
+                    pt_track_back->idepth_min_stereo = 0;
+                    pt_track_back->idepth_max_stereo = NAN;
                     ImmaturePointStatus pt_track_left = pt_track_back->traceStereo(fh_target, K1, 0);
 
-                    float depth = 1.0f/pt_track->idepth_stereo;
                     float u_delta = abs(pt_track->u - pt_track_back->lastTraceUV(0));
-                    if(u_delta<1 && depth > 0 && depth < 50)
+                    if(u_delta<2)
                     {
                         new_idepth = pt_track->idepth_stereo;
                         delete pt_track;
@@ -346,19 +395,24 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, 
                     } else{
 
                         new_idepth = r->centerProjectedTo[2];
+//                        ph->setPointStatus(PointHessian::OUTLIER);
                         delete pt_track;
                         delete pt_track_back;
+//                        continue;
                     }
 
                 }else{
 
                     new_idepth = r->centerProjectedTo[2];
+//                    ph->setPointStatus(PointHessian::OUTLIER);
                     delete pt_track;
+//                    continue;
 
                 }
 
 				float weight = sqrtf(1e-3 / (ph->efPoint->HdiF+1e-12));
 
+				// 对idepth做一个加权更新
 				idepth[0][u+w[0]*v] += new_idepth *weight;
 				weightSums[0][u+w[0]*v] += weight;
 
@@ -366,6 +420,7 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, 
 		}
 	}
 
+	//对于金字塔的每一层
 	for(int lvl=1; lvl<pyrLevelsUsed; lvl++)
 	{
 		int lvlm1 = lvl-1;
@@ -377,6 +432,7 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, 
 		float* idepth_lm = idepth[lvlm1];
 		float* weightSums_lm = weightSums[lvlm1];
 
+		//得出每个点的深度，以及权重
 		for(int y=0;y<hl;y++)
 			for(int x=0;x<wl;x++)
 			{
@@ -392,6 +448,9 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, 
 											weightSums_lm[bidx+wlm1+1];
 			}
 	}
+
+//	printf("test \n");
+
 
     // dilate idepth by 1.
 	for(int lvl=0; lvl<2; lvl++)
@@ -645,6 +704,7 @@ Vec6 CoarseTracker::calcRes(int lvl, SE3 refToNew, AffLight aff_g2l, float cutof
 			//translation and rotation (positive)
 			//already have it.
 
+			//这一块是在算什么呢？把正负方向旋转平移及纯平移拿出来，算总和，意义是什么？
 			sumSquaredShiftT += (KuT-x)*(KuT-x) + (KvT-y)*(KvT-y);
 			sumSquaredShiftT += (KuT2-x)*(KuT2-x) + (KvT2-y)*(KvT2-y);
 			sumSquaredShiftRT += (Ku-x)*(Ku-x) + (Kv-y)*(Kv-y);
@@ -654,10 +714,12 @@ Vec6 CoarseTracker::calcRes(int lvl, SE3 refToNew, AffLight aff_g2l, float cutof
 
 		if(!(Ku > 2 && Kv > 2 && Ku < wl-3 && Kv < hl-3 && new_idepth > 0)) continue;
 
+
+
 		float refColor = lpc_color[i];
         Vec3f hitColor = getInterpolatedElement33(dINewl, Ku, Kv, wl);
         if(!std::isfinite((float)hitColor[0])) continue;
-
+        //跟lsd一样，affLL是affine transformation, 有a,b两个参数。hitColor是插值出来的三维向量
 		float residual = hitColor[0] - (float)(affLL[0] * refColor + affLL[1]);
 		//Huber weight
         float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
@@ -674,6 +736,7 @@ Vec6 CoarseTracker::calcRes(int lvl, SE3 refToNew, AffLight aff_g2l, float cutof
 		{
 			if(debugPlot) resImage->setPixel4(lpc_u[i], lpc_v[i], Vec3b(residual+128,residual+128,residual+128));
 
+			//Energy计算，残差的平方乘huber weight
 			E += hw *residual*residual*(2-hw);
 			numTermsInE++;
 
@@ -711,9 +774,11 @@ Vec6 CoarseTracker::calcRes(int lvl, SE3 refToNew, AffLight aff_g2l, float cutof
 		delete resImage;
 	}
 
+
+
 	Vec6 rs;
-	rs[0] = E;
-	rs[1] = numTermsInE;
+	rs[0] = E;				//energy，即为总残差的大小
+	rs[1] = numTermsInE;	//参与计算energy的残差数量。
 	rs[2] = sumSquaredShiftT/(sumSquaredShiftNum+0.1);
 	rs[3] = 0;
 	rs[4] = sumSquaredShiftRT/(sumSquaredShiftNum+0.1);
@@ -745,7 +810,11 @@ void CoarseTracker::setCoarseTrackingRef(
 	assert(frameHessians.size()>0);
 	lastRef = frameHessians.back();
 
+
+
 	makeCoarseDepthL0(frameHessians, fh_right, Hcalib);
+
+
 
 	refFrameID = lastRef->shell->id;
 	lastRef_aff_g2l = lastRef->aff_g2l();
@@ -778,12 +847,13 @@ bool CoarseTracker::trackNewestCoarse(
 
 	bool haveRepeated = false;
 
+    //对金字塔所有层
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{
 		Mat88 H; Vec8 b;
 		float levelCutoffRepeat=1;
 		Vec6 resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
-
+		//为了找到一个合适的cut off阈值，最多循环6次
 		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
 		{
 			levelCutoffRepeat*=2;
@@ -810,6 +880,9 @@ bool CoarseTracker::trackNewestCoarse(
 			std::cout << refToNew_current.log().transpose() << " AFF " << aff_g2l_current.vec().transpose() <<" (rel " << relAff.transpose() << ")\n";
 		}
 
+
+		//算一个增量inc, 8*1
+		//应该前6维是旋转平移，后两维是affine系数a,b
 		for(int iteration=0; iteration < maxIterations[lvl]; iteration++)
 		{
 			Mat88 Hl = H;
@@ -818,6 +891,7 @@ bool CoarseTracker::trackNewestCoarse(
 
 			if(setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
 			{
+			  //求解方程？？
 				inc.head<6>() = Hl.topLeftCorner<6,6>().ldlt().solve(-b.head<6>());
 			 	inc.tail<2>().setZero();
 			}
@@ -854,13 +928,16 @@ bool CoarseTracker::trackNewestCoarse(
 
             if(!std::isfinite(incScaled.sum())) incScaled.setZero();
 
+			//用新的inc给当前的估计增加一点旋转，看看会不会更好。
 			SE3 refToNew_new = SE3::exp((Vec6)(incScaled.head<6>())) * refToNew_current;
 			AffLight aff_g2l_new = aff_g2l_current;
 			aff_g2l_new.a += incScaled[6];
 			aff_g2l_new.b += incScaled[7];
 
+			//对于新的affine，再算一次残差
 			Vec6 resNew = calcRes(lvl, refToNew_new, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
-
+			
+			//如果残差下降！
 			bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
 
 			if(debugPrint)
@@ -876,6 +953,8 @@ bool CoarseTracker::trackNewestCoarse(
 						inc.norm());
 				std::cout << refToNew_new.log().transpose() << " AFF " << aff_g2l_new.vec().transpose() <<" (rel " << relAff.transpose() << ")\n";
 			}
+//			if(lvl==0)
+			  // printf("lvl0 res: old %f new %f\n", resOld[0], resNew[0]);
 			if(accept)
 			{
 				calcGSSSE(lvl, H, b, refToNew_new, aff_g2l_new);
@@ -891,6 +970,7 @@ bool CoarseTracker::trackNewestCoarse(
 				if(lambda < lambdaExtrapolationLimit) lambda = lambdaExtrapolationLimit;
 			}
 
+			//如果inc小于阈值，跳出
 			if(!(inc.norm() > 1e-3))
 			{
 				if(debugPrint)
@@ -1123,6 +1203,7 @@ void CoarseDistanceMap::makeInlierVotes(std::vector<FrameHessian*> frameHessians
 }
 
 
+
 void CoarseDistanceMap::growDistBFS(int bfsNum)
 {
 	assert(w[0] != 0);
@@ -1227,6 +1308,7 @@ void CoarseDistanceMap::addIntoDistFinal(int u, int v)
 	fwdWarpedIDDistFinal[u+w[1]*v] = 0;
 	growDistBFS(1);
 }
+
 
 
 void CoarseDistanceMap::makeK(CalibHessian* HCalib)

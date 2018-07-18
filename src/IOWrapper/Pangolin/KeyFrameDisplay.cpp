@@ -317,6 +317,32 @@ bool KeyFrameDisplay::refreshPC(bool canRefresh, float scaledTH, float absTH, in
 }
 
 
+void KeyFrameDisplay::drawGTCam(Sophus::Matrix4f m, float lineWidth, float* color, float sizeFactor)
+{
+    if(cx != 0 || cy != 0)
+        return;
+
+    float sz=sizeFactor;
+
+    glPushMatrix();
+
+    glMultMatrixf((GLfloat*)m.data());
+
+    if(color == 0)
+    {
+        glColor3f(1,0,0);
+    }
+    else
+        glColor3f(color[0],color[1],color[2]);
+
+    glLineWidth(lineWidth);
+    glBegin(GL_LINES);
+    glVertex3f(0,0,0);
+    glVertex3f(sz*(0-cx)/fx,sz*(0-cy)/fy,sz);
+
+    glEnd();
+    glPopMatrix();
+}
 
 void KeyFrameDisplay::drawCam(float lineWidth, float* color, float sizeFactor)
 {

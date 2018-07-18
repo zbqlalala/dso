@@ -27,10 +27,6 @@
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 #include <iostream>
 
-#if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
-#include "SSE2NEON.h"
-#endif
-
 namespace dso
 {
 
@@ -160,10 +156,6 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 template void AccumulatedTopHessianSSE::addPoint<0>(EFPoint* p, EnergyFunctional const * const ef, int tid);
 template void AccumulatedTopHessianSSE::addPoint<1>(EFPoint* p, EnergyFunctional const * const ef, int tid);
 template void AccumulatedTopHessianSSE::addPoint<2>(EFPoint* p, EnergyFunctional const * const ef, int tid);
-
-
-
-
 
 
 

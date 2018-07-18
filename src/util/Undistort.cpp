@@ -40,13 +40,7 @@
 namespace dso
 {
 
-
-
-
-
-
-
-
+  //光度学矫正
 PhotometricUndistorter::PhotometricUndistorter(
 		std::string file,
 		std::string noiseImage,
@@ -185,6 +179,7 @@ PhotometricUndistorter::~PhotometricUndistorter()
 }
 
 
+
 void PhotometricUndistorter::unMapFloatImage(float* image)
 {
 	int wh=w*h;
@@ -263,6 +258,8 @@ Undistort::~Undistort()
 	if(remapY != 0) delete[] remapY;
 }
 
+
+//通过文件读取矫正参数
 Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::string gammaFilename, std::string vignetteFilename)
 {
 	printf("Reading Calibration from file %s",configFilename.c_str());
@@ -286,6 +283,7 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
 	Undistort* u;
 
     // for backwards-compatibility: Use RadTan model for 8 parameters.
+	// 如果有8个参数，则是RadTan模型
 	if(std::sscanf(l1.c_str(), "%f %f %f %f %f %f %f %f",
 			&ic[0], &ic[1], &ic[2], &ic[3],
 			&ic[4], &ic[5], &ic[6], &ic[7]) == 8)
@@ -296,6 +294,7 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
     }
 
     // for backwards-compatibility: Use Pinhole / FoV model for 5 parameter.
+    // 如果是五个参数，即是pinhole或fov模型
     else if(std::sscanf(l1.c_str(), "%f %f %f %f %f",
 			&ic[0], &ic[1], &ic[2], &ic[3], &ic[4]) == 5)
 	{
@@ -312,9 +311,6 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
 			if(!u->isValid()) {delete u; return 0; }
 		}
 	}
-
-
-
 
 
     // clean model selection implementation.
@@ -382,14 +378,17 @@ void Undistort::loadPhotometricCalibration(std::string file, std::string noiseIm
 	photometricUndist = new PhotometricUndistorter(file, noiseImage, vignetteImage,getOriginalSize()[0], getOriginalSize()[1]);
 }
 
+
+
+//矫正，即把图片打包成ImageAndExposure类
 template<typename T>
 ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float exposure, double timestamp, float factor) const
 {
-	if(image_raw->w != wOrg || image_raw->h != hOrg)
-	{
-		printf("Undistort::undistort: wrong image size (%d %d instead of %d %d) \n", image_raw->w, image_raw->h, w, h);
-		exit(1);
-	}
+//	if(image_raw->w != wOrg || image_raw->h != hOrg)
+//	{
+//		printf("Undistort::undistort: wrong image size (%d %d instead of %d %d) \n", image_raw->w, image_raw->h, w, h);
+//		exit(1);
+//	}
 
 	photometricUndist->processFrame<T>(image_raw->data, exposure, factor);
 	ImageAndExposure* result = new ImageAndExposure(w, h, timestamp);
@@ -709,7 +708,7 @@ void Undistort::makeOptimalK_crop()
 
 void Undistort::makeOptimalK_full()
 {
-	// todo
+	// todo???
 	assert(false);
 }
 
@@ -729,12 +728,13 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 	std::ifstream infile(configFileName);
 	assert(infile.good());
 
-    std::string l1,l2,l3,l4;
+    std::string l1,l2,l3,l4,l5;
 
 	std::getline(infile,l1);
 	std::getline(infile,l2);
     std::getline(infile,l3);
     std::getline(infile,l4);
+    std::getline(infile,l5);
 
     // l1 & l2
     if(nPars == 5) // fov model
@@ -807,7 +807,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 
 
 
-	// l3
+	// l3，第三行，裁剪类型
 	if(l3 == "crop")
 	{
 		outputCalibration[0] = -1;
@@ -837,7 +837,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 	}
 
 
-	// l4
+	// l4 第四行，裁剪后分辨率，放到w,h变量中
 	if(std::sscanf(l4.c_str(), "%d %d", &w, &h) == 2)
 	{
 		if(benchmarkSetting_width != 0)
@@ -859,6 +859,17 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 	{
 		printf("Out: Failed to Read Output resolution... not rectifying.\n");
 		valid = false;
+    }
+
+
+    //　l5 第五行，存放baseline, 放到bl中
+    if(std::sscanf(l5.c_str(), "%f", &bl) == 1)
+    {
+        printf("Baseline: %f \n", bl);
+    }
+    else
+    {
+        printf("Out: Failed to Read Baseline... can not do stereo. \n");
     }
 
     remapX = new float[w*h];
@@ -907,7 +918,6 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
         passthrough = false; // cannot pass through when fx / fy have been overwritten.
 	}
 
-
 	for(int y=0;y<h;y++)
 		for(int x=0;x<w;x++)
 		{
@@ -943,9 +953,6 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 		}
 
 	valid = true;
-
-
-
 
 	printf("\nRectified Kamera Matrix:\n");
 	std::cout << K << "\n\n";
@@ -1076,7 +1083,7 @@ UndistortEquidistant::UndistortEquidistant(const char* configFileName, bool nopr
     if(noprefix)
         readFromFile(configFileName, 8);
     else
-        readFromFile(configFileName, 8,"EquiDistant ");
+        readFromFile(configFileName, 8,"Equidistant ");
 }
 UndistortEquidistant::~UndistortEquidistant()
 {

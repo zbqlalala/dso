@@ -71,7 +71,7 @@ void PointHessian::release()
 }
 
 
-void FrameHessian::setStateZero(const Vec10 &state_zero)
+void FrameHessian::setStateZero(Vec10 state_zero)
 {
 	assert(state_zero.head<6>().squaredNorm() < 1e-20);
 
@@ -112,10 +112,10 @@ void FrameHessian::release()
 {
 	// DELETE POINT
 	// DELETE RESIDUAL
-	for(unsigned int i=0;i<pointHessians.size();i++) delete pointHessians[i];
-	for(unsigned int i=0;i<pointHessiansMarginalized.size();i++) delete pointHessiansMarginalized[i];
-	for(unsigned int i=0;i<pointHessiansOut.size();i++) delete pointHessiansOut[i];
-	for(unsigned int i=0;i<immaturePoints.size();i++) delete immaturePoints[i];
+	  for(unsigned int i=0;i<pointHessians.size();i++) delete pointHessians[i];
+	  for(unsigned int i=0;i<pointHessiansMarginalized.size();i++) delete pointHessiansMarginalized[i];
+	  for(unsigned int i=0;i<pointHessiansOut.size();i++) delete pointHessiansOut[i];
+	  for(unsigned int i=0;i<immaturePoints.size();i++) delete immaturePoints[i];
 
 
 	pointHessians.clear();
@@ -145,9 +145,11 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 	for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
 	{
 		int wl = wG[lvl], hl = hG[lvl];
+		
 		Eigen::Vector3f* dI_l = dIp[lvl];
-
 		float* dabs_l = absSquaredGrad[lvl];
+		
+		
 		if(lvl>0)
 		{
 			int lvlm1 = lvl-1;
@@ -168,16 +170,16 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 
 		for(int idx=wl;idx < wl*(hl-1);idx++)
 		{
+			
 			float dx = 0.5f*(dI_l[idx+1][0] - dI_l[idx-1][0]);
 			float dy = 0.5f*(dI_l[idx+wl][0] - dI_l[idx-wl][0]);
-
 
 			if(!std::isfinite(dx)) dx=0;
 			if(!std::isfinite(dy)) dy=0;
 
+			//
 			dI_l[idx][1] = dx;
 			dI_l[idx][2] = dy;
-
 
 			dabs_l[idx] = dx*dx+dy*dy;
 
@@ -192,6 +194,7 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 
 void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )
 {
+  // printf("whether this->host is NULL: yes is 1, no is 0. Answer: %x\n", this);
 	this->host = host;
 	this->target = target;
 
